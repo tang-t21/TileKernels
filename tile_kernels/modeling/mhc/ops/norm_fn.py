@@ -1,15 +1,14 @@
 import torch
+from tilelang.autotuner import set_autotune_inputs
 from torch.utils.checkpoint import checkpoint
 
-from tile_kernels.mhc.norm_fn_kernel import (
-    _mhc_fn_normw_merge_bwd,
-    _mhc_fn_normw_merge_fwd,
-    _mhc_pre_norm_fn_bwd_mul,
-    _mhc_pre_norm_fn_bwd_norm,
-    _mhc_pre_norm_fn_fwd_mul,
-    _mhc_pre_norm_fn_fwd_norm,
-    round_to_tf32,
-)
+from tile_kernels.mhc.norm_fn_kernel import (_mhc_fn_normw_merge_bwd,
+                                             _mhc_fn_normw_merge_fwd,
+                                             _mhc_pre_norm_fn_bwd_mul,
+                                             _mhc_pre_norm_fn_bwd_norm,
+                                             _mhc_pre_norm_fn_fwd_mul,
+                                             _mhc_pre_norm_fn_fwd_norm,
+                                             round_to_tf32)
 
 
 class _MHCFnNormwMerge(torch.autograd.Function):
@@ -94,13 +93,17 @@ class MHCPreNormFn(torch.autograd.Function):
 
         fn = round_to_tf32(fn)
 
-        fwd_mul_kernel = _mhc_pre_norm_fn_fwd_mul(mhc_mult3, 1, mhc_hidden_size, **kernel_config.get('fwd_mul', {}))
-        fwd_mul_kernel(
+        inputs = (
             x.view(-1, mhc_hidden_size),
             fn,
             out_mul_splitted.view(-1, 1, mhc_mult3),
             sqrsum_splitted.view(-1, 1),
         )
+        with set_autotune_inputs(*inputs):
+            fwd_mul_kernel = _mhc_pre_norm_fn_fwd_mul(
+                mhc_mult3, 1, mhc_hidden_size, **kernel_config.get('fwd_mul', {})
+            )
+        fwd_mul_kernel(*inputs)
         # END of TileLang implementation of pre-norm-fn forward matmul
 
         out_mul = torch.empty_like(out_mul_splitted[0])
@@ -157,8 +160,7 @@ class MHCPreNormFn(torch.autograd.Function):
 
         out_mul_grad = round_to_tf32(out_mul_grad)
 
-        bwd_mul_kernel = _mhc_pre_norm_fn_bwd_mul(mhc_mult3, 1, mhc_hidden_size, **ctx.bwd_mul_config)
-        bwd_mul_kernel(
+        inputs = (
             out_mul_grad.view(-1, 1, mhc_mult3),
             sqrsum_grad.view(-1, 1),
             x.view(-1, mhc_hidden_size),
@@ -166,6 +168,13 @@ class MHCPreNormFn(torch.autograd.Function):
             x_grad.view(-1, mhc_hidden_size),
             fn_grad,
         )
+        # Native autotuning benchmarks clones, including the accumulating x_grad.
+        # The actual gradient buffers are updated exactly once below.
+        with set_autotune_inputs(*inputs):
+            bwd_mul_kernel = _mhc_pre_norm_fn_bwd_mul(
+                mhc_mult3, 1, mhc_hidden_size, **ctx.bwd_mul_config
+            )
+        bwd_mul_kernel(*inputs)
 
         if ctx.fuse_grad_acc:
             del x.untyped_storage().grad_from_mhc_post

@@ -89,26 +89,29 @@ This code repository is released under [the MIT License](LICENSE).
 
 ### Optional native mHC configurations
 
-The modeling operators retain their original configurations by default. Callers
-that have validated an offline configuration can pass the optional, keyword-only
-`kernel_config` argument to these operators:
+Projection forward/backward and Sinkhorn forward use native `@tilelang.autotune`
+with baseline and numerically validated candidates. The first cache miss times
+isolated copies of valid inputs; later calls reuse TileLang's autotune and JIT
+caches. Dynamic token lengths share a static tuning key, so warm up with a
+representative workload before steady-state measurement or CUDA graph capture.
+The Core adapter does not need to identify compiler builds or select schedules.
 
-- `mhc_pre_norm_fn`: a mapping with `fwd_mul` and/or `bwd_mul` configuration
-  mappings. Projection options are `token_block`, `hidden_block`, and, for the
-  forward projection, `num_stages`. Normalization keeps its single-warp layout.
-- `sinkhorn_normalize`: an optional `fwd` mapping containing `token_block_size`.
-  Backward keeps its original token block of 32.
+Explicit keyword-only `kernel_config` overrides remain available:
 
-`MHC_KERNEL_CONFIG_VERSION = 1` in `tile_kernels.modeling.mhc.ops` identifies
-this optional configuration interface. Overrides use the ordinary TileLang JIT
-cache; the operators do not benchmark or choose configurations during training.
-Forward calls retain the backward selection with their saved autograd state.
-Existing precision, output buffers, gradient accumulation and tensor layouts are
-preserved. A configuration still needs validation for its device and workload;
-resource-incompatible configurations may fail to compile or launch.
+- `mhc_pre_norm_fn`: `fwd_mul` (`token_block`, `hidden_block`, `num_stages`) and/or
+  `bwd_mul` (`token_block`, `hidden_block`).
+- `sinkhorn_normalize`: `fwd` (`token_block_size`).
 
-For example, an independently validated backward projection can be selected
-without changing its forward projection or normalization:
+An explicit tuned parameter bypasses autotuning using TileLang's native override
+behavior; other parameters use their original defaults. Backward overrides stay
+local to each autograd context. In-place gradient accumulation uses real buffers
+only for the final kernel invocation; tuning uses clones. The other nine mHC
+kernels retain their original schedules. Candidate correctness is established by
+separate kernel and composed-gradient checks, not by latency measurements.
+
+These operations require TileLang 0.1.11 or newer. `MHC_KERNEL_CONFIG_VERSION = 1`
+continues to identify the optional override interface. FP32 parameter storage,
+state dictionaries and the native numerical contract are preserved.
 
 ```python
 mixes = mhc_pre_norm_fn(

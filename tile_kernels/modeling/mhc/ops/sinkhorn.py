@@ -1,6 +1,8 @@
 import torch
+from tilelang.autotuner import set_autotune_inputs
 
-from tile_kernels.mhc.sinkhorn_kernel import _mhc_sinkhorn_bwd, _mhc_sinkhorn_fwd
+from tile_kernels.mhc.sinkhorn_kernel import (_mhc_sinkhorn_bwd,
+                                              _mhc_sinkhorn_fwd)
 
 
 class _SinkhornNormalize(torch.autograd.Function):
@@ -17,9 +19,10 @@ class _SinkhornNormalize(torch.autograd.Function):
         kernel_config = kernel_config or {}
         if set(kernel_config) - {'fwd'}:
             raise ValueError('Only forward Sinkhorn configuration is supported')
-        fwd_kernel = _mhc_sinkhorn_fwd(
-            hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 1, **kernel_config.get('fwd', {})},
-        )
+        with set_autotune_inputs(x, output):
+            fwd_kernel = _mhc_sinkhorn_fwd(
+                hidden_size, repeat=repeat, eps=eps, **kernel_config.get('fwd', {}),
+            )
         bwd_kernel = _mhc_sinkhorn_bwd(hidden_size, 32, repeat, eps)
         ctx.save_for_backward(x)
         ctx.bwd_kernel = bwd_kernel

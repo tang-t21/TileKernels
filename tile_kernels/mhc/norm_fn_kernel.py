@@ -1,7 +1,8 @@
+from functools import lru_cache
+
 import tilelang
 import torch
 from tilelang import language as T
-
 
 _PASS_CONFIGS = {
     tilelang.PassConfigKey.TL_DISABLE_WGMMA: True,
@@ -61,6 +62,13 @@ def _mhc_fn_normw_merge_bwd(m: int, n: int, dtype: T.dtype = T.float32) -> tilel
     return _mhc_fn_normw_merge_bwd_
 
 
+# Preserve the reduction layout; only candidates accepted by composed mHC checks.
+@lru_cache(maxsize=128)
+@tilelang.autotune(configs=[
+    {"token_block": 32, "hidden_block": 256, "num_stages": 2},
+    {"token_block": 64, "hidden_block": 128, "num_stages": 3},
+    {"token_block": 128, "hidden_block": 64, "num_stages": 3},
+])
 @tilelang.jit(pass_configs=_PASS_CONFIGS)
 def _mhc_pre_norm_fn_fwd_mul(
     mhc_mult3: int,
@@ -206,6 +214,8 @@ def _mhc_pre_norm_fn_bwd_norm(
     return _mhc_pre_norm_fn_bwd_norm_kernel
 
 
+@lru_cache(maxsize=128)
+@tilelang.autotune(configs=[{"hidden_block": block} for block in (128, 64)])
 @tilelang.jit(pass_configs=_PASS_CONFIGS)
 def _mhc_pre_norm_fn_bwd_mul(
     mhc_mult3: int,
