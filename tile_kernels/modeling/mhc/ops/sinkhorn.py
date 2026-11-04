@@ -23,7 +23,7 @@ class _SinkhornNormalize(torch.autograd.Function):
         return output
 
     @staticmethod
-    def backward(ctx: '_SinkhornNormalize', grad_output: torch.Tensor) -> tuple[torch.Tensor, None, None]:
+    def backward(ctx: '_SinkhornNormalize', grad_output: torch.Tensor) -> tuple[torch.Tensor, None, None, None]:
         x = ctx.saved_tensors[0]
         grad_input = torch.empty_like(x)
         ctx.bwd_kernel(grad_output, x, grad_input)

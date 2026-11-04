@@ -25,7 +25,7 @@ class MHCPreApplyMix(torch.autograd.Function):
         return out
 
     @staticmethod
-    def backward(ctx: 'MHCPreApplyMix', o_grad: torch.Tensor) -> tuple[torch.Tensor | None, torch.Tensor, None]:
+    def backward(ctx: 'MHCPreApplyMix', o_grad: torch.Tensor) -> tuple[torch.Tensor | None, torch.Tensor, None, None]:
         x, mix = ctx.saved_tensors
         h = x.shape[-1]
         mhc = mix.shape[-2]

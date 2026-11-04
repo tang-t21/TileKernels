@@ -24,7 +24,7 @@ class MHCPost(torch.autograd.Function):
     def backward(
         ctx: 'MHCPost',
         d_o: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
         return *mhc_post_bwd(*ctx.saved_tensors, d_o, kernel_config=ctx.bwd_config), None, None
 
 

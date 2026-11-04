@@ -134,7 +134,7 @@ class MHCPreNormFn(torch.autograd.Function):
     def backward(
         ctx: 'MHCPreNormFn',
         out_grad: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
+    ) -> tuple[torch.Tensor | None, torch.Tensor, None, None, None, None]:
         x, fn, out_mul, sqrsum = ctx.saved_tensors
         norm_eps = ctx.norm_eps
 

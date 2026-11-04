@@ -75,6 +75,8 @@ def _mhc_pre_split_mixes_bwd(
     num_sms: int = 148,
     dtype: T.dtype = T.float32,
 ) -> tilelang.JITKernel:
+    # The explicit fragment layout and token reduction use complete 32-lane warps.
+    assert token_block_size >= 32 and token_block_size % 32 == 0, 'backward token tiles must be multiples of 32'
     num_tokens = T.dynamic('num_tokens')
 
     mhc_mult2 = mhc_mult * mhc_mult

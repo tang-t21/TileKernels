@@ -63,7 +63,7 @@ class MHCPreSplitMixes(torch.autograd.Function):
         pre_layer_mix_grad: torch.Tensor,
         post_layer_mix_grad: torch.Tensor,
         comb_res_mix_grad: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None, None, None]:
         input_mixes, _pre_layer_mix, post_layer_mix, mhc_scale, mhc_base = ctx.saved_tensors
 
         input_mixes_grad = torch.empty_like(input_mixes)
