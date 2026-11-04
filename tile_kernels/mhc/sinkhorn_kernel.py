@@ -1,3 +1,5 @@
+from functools import lru_cache
+
 import tilelang
 import torch
 from tilelang import language as T
@@ -7,12 +9,14 @@ _PASS_CONFIGS = {
 }
 
 
+@lru_cache(maxsize=128)
+@tilelang.autotune(configs=[{"token_block_size": block} for block in (1, 8)])
 @tilelang.jit(pass_configs=_PASS_CONFIGS)
 def _mhc_sinkhorn_fwd(
     hidden_size: int,
-    token_block_size: int,
-    repeat: int,
-    eps: float,
+    token_block_size: int = 1,
+    repeat: int = 10,
+    eps: float = 1e-6,
 ) -> tilelang.JITKernel:
     num_tokens = T.dynamic('num_tokens')
 

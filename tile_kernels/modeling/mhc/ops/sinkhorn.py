@@ -1,6 +1,8 @@
 import torch
+from tilelang.autotuner import set_autotune_inputs
 
-from tile_kernels.mhc.sinkhorn_kernel import _mhc_sinkhorn_bwd, _mhc_sinkhorn_fwd
+from tile_kernels.mhc.sinkhorn_kernel import (_mhc_sinkhorn_bwd,
+                                              _mhc_sinkhorn_fwd)
 
 
 class _SinkhornNormalize(torch.autograd.Function):
@@ -10,10 +12,17 @@ class _SinkhornNormalize(torch.autograd.Function):
         x: torch.Tensor,
         repeat: int,
         eps: float,
+        kernel_config: dict[str, dict[str, int]] | None = None,
     ) -> torch.Tensor:
         hidden_size = x.shape[1]
         output = torch.empty_like(x)
-        fwd_kernel = _mhc_sinkhorn_fwd(hidden_size, 1, repeat, eps)
+        kernel_config = kernel_config or {}
+        if set(kernel_config) - {'fwd'}:
+            raise ValueError('Only forward Sinkhorn configuration is supported')
+        with set_autotune_inputs(x, output):
+            fwd_kernel = _mhc_sinkhorn_fwd(
+                hidden_size, repeat=repeat, eps=eps, **kernel_config.get('fwd', {}),
+            )
         bwd_kernel = _mhc_sinkhorn_bwd(hidden_size, 32, repeat, eps)
         ctx.save_for_backward(x)
         ctx.bwd_kernel = bwd_kernel
@@ -21,12 +30,18 @@ class _SinkhornNormalize(torch.autograd.Function):
         return output
 
     @staticmethod
-    def backward(ctx: '_SinkhornNormalize', grad_output: torch.Tensor) -> tuple[torch.Tensor, None, None]:
+    def backward(ctx: '_SinkhornNormalize', grad_output: torch.Tensor) -> tuple[torch.Tensor, None, None, None]:
         x = ctx.saved_tensors[0]
         grad_input = torch.empty_like(x)
         ctx.bwd_kernel(grad_output, x, grad_input)
-        return grad_input, None, None
+        return grad_input, None, None, None
 
 
-def sinkhorn_normalize(x: torch.Tensor, repeat: int = 10, eps: float = 1e-6) -> torch.Tensor:
-    return _SinkhornNormalize.apply(x.contiguous().view(-1, *x.shape[-2:]), repeat, eps).view_as(x)
+def sinkhorn_normalize(
+    x: torch.Tensor,
+    repeat: int = 10,
+    eps: float = 1e-6,
+    *,
+    kernel_config: dict[str, dict[str, int]] | None = None,
+) -> torch.Tensor:
+    return _SinkhornNormalize.apply(x.contiguous().view(-1, *x.shape[-2:]), repeat, eps, kernel_config).view_as(x)

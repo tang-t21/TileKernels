@@ -72,6 +72,7 @@ def _mhc_post_bwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 256) -> 
     h = hidden
 
     h_blk = math.gcd(hidden, h_blk)
+    assert (n_thr, h_blk) != (256, 128), 'This post-backward reduction layout is unsupported'
 
     @T.prim_func
     def _mhc_post_bwd_kernel(

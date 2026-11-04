@@ -86,3 +86,44 @@ This code repository is released under [the MIT License](LICENSE).
       howpublished = {\url{https://github.com/deepseek-ai/TileKernels}},
 }
 ```
+
+### Optional native mHC configurations
+
+Projection forward/backward and Sinkhorn forward use native `@tilelang.autotune`
+with baseline and numerically validated candidates. The first cache miss times
+isolated copies of valid inputs; later calls reuse TileLang's autotune and JIT
+caches. Dynamic token lengths share a static tuning key, so warm up with a
+representative workload before steady-state measurement or CUDA graph capture.
+The Core adapter does not need to identify compiler builds or select schedules.
+
+Explicit keyword-only `kernel_config` overrides remain available:
+
+- `mhc_pre_norm_fn`: `fwd_mul` (`token_block`, `hidden_block`, `num_stages`) and/or
+  `bwd_mul` (`token_block`, `hidden_block`).
+- `sinkhorn_normalize`: `fwd` (`token_block_size`).
+
+An explicit tuned parameter bypasses autotuning using TileLang's native override
+behavior; other parameters use their original defaults. Backward overrides stay
+local to each autograd context. In-place gradient accumulation uses real buffers
+only for the final kernel invocation; tuning uses clones. The other nine mHC
+kernels retain their original schedules. Candidate correctness is established by
+separate kernel and composed-gradient checks, not by latency measurements.
+
+These operations require TileLang 0.1.11 or newer. `MHC_KERNEL_CONFIG_VERSION = 1`
+continues to identify the optional override interface. FP32 parameter storage,
+state dictionaries and the native numerical contract are preserved.
+
+```python
+mixes = mhc_pre_norm_fn(
+    residual, fn, None, 1e-5, fuse_grad_acc=False,
+    kernel_config={'bwd_mul': {'hidden_block': 64}},
+)
+```
+
+The split-mix backward kernel requires complete 32-lane token tiles. It rejects
+smaller or non-multiple tiles before compilation rather than launching an
+unsupported reduction layout.
+
+Post backward rejects the 256-thread / 128-hidden-element layout because its
+reduction duplicates parameter gradients. Other caller-supplied configurations
+still require numerical and resource validation.
