@@ -68,11 +68,11 @@ def _mhc_post_fwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024) ->
 )
 def _mhc_post_bwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 256, num_stages: int = 3) -> tilelang.JITKernel:
     assert mhc == 4
-    assert (n_thr, h_blk) != (256, 128), 'This post-backward reduction layout is unsupported'
     n = T.dynamic('num_tokens')
     h = hidden
 
     h_blk = math.gcd(hidden, h_blk)
+    assert (n_thr, h_blk) != (256, 128), 'This post-backward reduction layout is unsupported'
 
     @T.prim_func
     def _mhc_post_bwd_kernel(
