@@ -121,3 +121,7 @@ mixes = mhc_pre_norm_fn(
 The split-mix backward kernel requires complete 32-lane token tiles. It rejects
 smaller or non-multiple tiles before compilation rather than launching an
 unsupported reduction layout.
+
+Post backward rejects the 256-thread / 128-hidden-element layout because its
+reduction duplicates parameter gradients. Other caller-supplied configurations
+still require numerical and resource validation.
