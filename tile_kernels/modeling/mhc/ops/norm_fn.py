@@ -112,7 +112,6 @@ class MHCPreNormFn(torch.autograd.Function):
             mhc_hidden_size,
             norm_eps,
             n_splits,
-            **kernel_config.get('fwd_norm', {}),
         )
         fwd_norm_kernel(
             out_mul_splitted.view(n_splits, -1, 1, mhc_mult3),
@@ -125,7 +124,6 @@ class MHCPreNormFn(torch.autograd.Function):
         ctx.save_for_backward(x, fn, out_mul, sqrsum)
         ctx.norm_eps = norm_eps
         ctx.fuse_grad_acc = fuse_grad_acc
-        ctx.bwd_norm_config = dict(kernel_config.get('bwd_norm', {}))
         ctx.bwd_mul_config = dict(kernel_config.get('bwd_mul', {}))
 
         return out
@@ -142,7 +140,7 @@ class MHCPreNormFn(torch.autograd.Function):
 
         out_mul_grad = torch.empty_like(out_mul)
         sqrsum_grad = torch.empty_like(sqrsum)
-        bwd_norm_kernel = _mhc_pre_norm_fn_bwd_norm(mhc_mult3, 1, mhc_hidden_size, norm_eps, **ctx.bwd_norm_config)
+        bwd_norm_kernel = _mhc_pre_norm_fn_bwd_norm(mhc_mult3, 1, mhc_hidden_size, norm_eps)
         bwd_norm_kernel(
             out_grad.view(-1, mhc_mult3),
             out_mul.view(-1, 1, mhc_mult3),

@@ -14,7 +14,6 @@ class MHCPreSplitMixes(torch.autograd.Function):
         mhc_mult: int,
         mhc_post_mult_value: float,
         mhc_pre_eps: float,
-        kernel_config: dict[str, dict[str, int]] | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         mhc_mult2 = mhc_mult * mhc_mult
         mhc_mult3 = mhc_mult * 2 + mhc_mult2
@@ -31,18 +30,17 @@ class MHCPreSplitMixes(torch.autograd.Function):
         post_layer_mix = input_mixes.new_empty(num_tokens, mhc_mult)
         comb_res_mix = input_mixes.new_empty(num_tokens, mhc_mult2)
 
-        kernel_config = kernel_config or {}
         ctx.fwd_kernel = _mhc_pre_split_mixes_fwd(
             mhc_mult,
             mhc_post_mult_value,
             mhc_pre_eps,
-            **{'token_block_size': 32, **kernel_config.get('fwd', {})},
+            token_block_size=32,
         )
         ctx.bwd_kernel = _mhc_pre_split_mixes_bwd(
             mhc_mult,
             mhc_post_mult_value,
+            token_block_size=32,
             num_sms=get_num_sms(),
-            **{'token_block_size': 32, **kernel_config.get('bwd', {})},
         )
         ctx.num_sms = get_num_sms()
 
@@ -63,7 +61,7 @@ class MHCPreSplitMixes(torch.autograd.Function):
         pre_layer_mix_grad: torch.Tensor,
         post_layer_mix_grad: torch.Tensor,
         comb_res_mix_grad: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None, None, None]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
         input_mixes, _pre_layer_mix, post_layer_mix, mhc_scale, mhc_base = ctx.saved_tensors
 
         input_mixes_grad = torch.empty_like(input_mixes)
@@ -103,7 +101,7 @@ class MHCPreSplitMixes(torch.autograd.Function):
         mhc_scale_grad = mhc_scale_grad_partial.sum(0)
         mhc_base_grad = mhc_base_grad_partial.sum(0)
 
-        return input_mixes_grad, mhc_scale_grad, mhc_base_grad, None, None, None, None
+        return input_mixes_grad, mhc_scale_grad, mhc_base_grad, None, None, None
 
 
 def mhc_pre_split_mixes(
@@ -113,8 +111,6 @@ def mhc_pre_split_mixes(
     mhc_mult: int,
     mhc_post_mult_value: float,
     mhc_pre_eps: float,
-    *,
-    kernel_config: dict[str, dict[str, int]] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     return MHCPreSplitMixes.apply(
         input_mixes,
@@ -123,5 +119,4 @@ def mhc_pre_split_mixes(
         mhc_mult,
         mhc_post_mult_value,
         mhc_pre_eps,
-        kernel_config,
     )

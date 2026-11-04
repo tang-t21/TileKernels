@@ -12,7 +12,7 @@ from tilelang import language as T
         tilelang.PassConfigKey.TL_DISABLE_VECTORIZE_256: True,
     },
 )
-def _mhc_post_fwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024, num_stages: int = 2) -> tilelang.JITKernel:
+def _mhc_post_fwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024) -> tilelang.JITKernel:
     n = T.dynamic('num_tokens')
     h = hidden
 
@@ -41,7 +41,7 @@ def _mhc_post_fwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024, nu
             T.copy(c[pid_n, 0], c_local)
             T.pdl_sync()
 
-            for i0_h in T.Pipelined(T.ceildiv(h, h_blk), num_stages=num_stages):
+            for i0_h in T.Pipelined(T.ceildiv(h, h_blk), num_stages=2):
                 T.copy(b[pid_n, 0, i0_h * h_blk], b_shared, disable_tma=True)
                 T.copy(d[pid_n, i0_h * h_blk], d_shared, disable_tma=True)
 
@@ -152,8 +152,6 @@ def mhc_post_fwd(
     post_layer_mix: torch.Tensor,
     comb_res_mix: torch.Tensor,
     out: torch.Tensor | None = None,
-    *,
-    kernel_config: dict[str, int] | None = None,
 ) -> torch.Tensor:
     num_seqs, num_tokens, mhc, hidden = residual.shape
 
@@ -172,7 +170,7 @@ def mhc_post_fwd(
 
     if out is None:
         out = torch.empty_like(residual)
-    kernel = _mhc_post_fwd(mhc, hidden, **(kernel_config or {}))
+    kernel = _mhc_post_fwd(mhc, hidden)
     kernel(
         comb_res_mix.flatten(0, 1),
         residual.flatten(0, 1),

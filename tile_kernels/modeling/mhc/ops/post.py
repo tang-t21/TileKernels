@@ -12,11 +12,8 @@ class MHCPost(torch.autograd.Function):
         post_layer_mix: torch.Tensor,
         comb_res_mix: torch.Tensor,
         out: torch.Tensor | None,
-        kernel_config: dict[str, dict[str, int]] | None = None,
     ) -> torch.Tensor:
-        kernel_config = kernel_config or {}
-        out = mhc_post_fwd(x, residual, post_layer_mix, comb_res_mix, out, kernel_config=kernel_config.get('fwd'))
-        ctx.bwd_config = dict(kernel_config.get('bwd', {}))
+        out = mhc_post_fwd(x, residual, post_layer_mix, comb_res_mix, out)
         ctx.save_for_backward(x, residual, post_layer_mix, comb_res_mix)
         return out
 
@@ -24,8 +21,8 @@ class MHCPost(torch.autograd.Function):
     def backward(
         ctx: 'MHCPost',
         d_o: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None, None]:
-        return *mhc_post_bwd(*ctx.saved_tensors, d_o, kernel_config=ctx.bwd_config), None, None
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, None]:
+        return *mhc_post_bwd(*ctx.saved_tensors, d_o), None
 
 
 def mhc_post(
@@ -34,7 +31,5 @@ def mhc_post(
     post_layer_mix: torch.Tensor,
     comb_res_mix: torch.Tensor,
     out: torch.Tensor | None = None,
-    *,
-    kernel_config: dict[str, dict[str, int]] | None = None,
 ) -> torch.Tensor:
-    return MHCPost.apply(x, residual, post_layer_mix, comb_res_mix, out, kernel_config)
+    return MHCPost.apply(x, residual, post_layer_mix, comb_res_mix, out)

@@ -86,3 +86,38 @@ This code repository is released under [the MIT License](LICENSE).
       howpublished = {\url{https://github.com/deepseek-ai/TileKernels}},
 }
 ```
+
+### Optional native mHC configurations
+
+The modeling operators retain their original configurations by default. Callers
+that have validated an offline configuration can pass the optional, keyword-only
+`kernel_config` argument to these operators:
+
+- `mhc_pre_norm_fn`: a mapping with `fwd_mul` and/or `bwd_mul` configuration
+  mappings. Projection options are `token_block`, `hidden_block`, and, for the
+  forward projection, `num_stages`. Normalization keeps its single-warp layout.
+- `sinkhorn_normalize`: `fwd` and/or `bwd` mappings containing
+  `token_block_size`.
+- `mhc_post_bwd`: a flat mapping containing `n_thr`, `h_blk`, and/or `num_stages`.
+
+`MHC_KERNEL_CONFIG_VERSION = 1` in `tile_kernels.modeling.mhc.ops` identifies
+this optional configuration interface. Overrides use the ordinary TileLang JIT
+cache; the operators do not benchmark or choose configurations during training.
+Forward calls retain the backward selection with their saved autograd state.
+Existing precision, output buffers, gradient accumulation and tensor layouts are
+preserved. A configuration still needs validation for its device and workload;
+resource-incompatible configurations may fail to compile or launch.
+
+For example, an independently validated backward projection can be selected
+without changing its forward projection or normalization:
+
+```python
+mixes = mhc_pre_norm_fn(
+    residual, fn, None, 1e-5, fuse_grad_acc=False,
+    kernel_config={'bwd_mul': {'hidden_block': 64}},
+)
+```
+
+The split-mix backward kernel requires complete 32-lane token tiles. It rejects
+smaller or non-multiple tiles before compilation rather than launching an
+unsupported reduction layout.

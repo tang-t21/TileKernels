@@ -15,8 +15,12 @@ class _SinkhornNormalize(torch.autograd.Function):
         hidden_size = x.shape[1]
         output = torch.empty_like(x)
         kernel_config = kernel_config or {}
-        fwd_kernel = _mhc_sinkhorn_fwd(hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 1, **kernel_config.get('fwd', {})})
-        bwd_kernel = _mhc_sinkhorn_bwd(hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 32, **kernel_config.get('bwd', {})})
+        fwd_kernel = _mhc_sinkhorn_fwd(
+            hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 1, **kernel_config.get('fwd', {})},
+        )
+        bwd_kernel = _mhc_sinkhorn_bwd(
+            hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 32, **kernel_config.get('bwd', {})},
+        )
         ctx.save_for_backward(x)
         ctx.bwd_kernel = bwd_kernel
         fwd_kernel(x, output)

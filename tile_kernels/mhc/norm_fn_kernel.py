@@ -131,9 +131,9 @@ def _mhc_pre_norm_fn_fwd_norm(
     rms_group_size: int,
     rms_eps: float,
     n_splits: int,
-    n_thr: int = 32,
 ) -> tilelang.JITKernel:
     num_tokens = T.dynamic('num_tokens')
+    n_thr = 32
 
     @T.prim_func
     def _mhc_pre_norm_fn_fwd_norm_kernel(
@@ -172,11 +172,9 @@ def _mhc_pre_norm_fn_bwd_norm(
     n_rms_group: int,
     rms_group_size: int,
     rms_eps: float,
-    n_thr: int = 32,
 ) -> tilelang.JITKernel:
-    # The replicated scalar reducer is specialized to a single warp.
-    assert n_thr == 32, 'pre-norm backward requires 32 threads'
     num_tokens = T.dynamic('num_tokens')
+    n_thr = 32
 
     @T.prim_func
     def _mhc_pre_norm_fn_bwd_norm_kernel(
