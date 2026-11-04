@@ -15,12 +15,12 @@ class _SinkhornNormalize(torch.autograd.Function):
         hidden_size = x.shape[1]
         output = torch.empty_like(x)
         kernel_config = kernel_config or {}
+        if set(kernel_config) - {'fwd'}:
+            raise ValueError('Only forward Sinkhorn configuration is supported')
         fwd_kernel = _mhc_sinkhorn_fwd(
             hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 1, **kernel_config.get('fwd', {})},
         )
-        bwd_kernel = _mhc_sinkhorn_bwd(
-            hidden_size, repeat=repeat, eps=eps, **{'token_block_size': 32, **kernel_config.get('bwd', {})},
-        )
+        bwd_kernel = _mhc_sinkhorn_bwd(hidden_size, 32, repeat, eps)
         ctx.save_for_backward(x)
         ctx.bwd_kernel = bwd_kernel
         fwd_kernel(x, output)

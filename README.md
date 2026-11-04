@@ -96,9 +96,8 @@ that have validated an offline configuration can pass the optional, keyword-only
 - `mhc_pre_norm_fn`: a mapping with `fwd_mul` and/or `bwd_mul` configuration
   mappings. Projection options are `token_block`, `hidden_block`, and, for the
   forward projection, `num_stages`. Normalization keeps its single-warp layout.
-- `sinkhorn_normalize`: `fwd` and/or `bwd` mappings containing
-  `token_block_size`.
-- `mhc_post_bwd`: a flat mapping containing `n_thr`, `h_blk`, and/or `num_stages`.
+- `sinkhorn_normalize`: an optional `fwd` mapping containing `token_block_size`.
+  Backward keeps its original token block of 32.
 
 `MHC_KERNEL_CONFIG_VERSION = 1` in `tile_kernels.modeling.mhc.ops` identifies
 this optional configuration interface. Overrides use the ordinary TileLang JIT

@@ -66,7 +66,7 @@ def _mhc_post_fwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 1024) ->
     },
     out_idx=[5, 6, 7, 8],
 )
-def _mhc_post_bwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 256, num_stages: int = 3) -> tilelang.JITKernel:
+def _mhc_post_bwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 256) -> tilelang.JITKernel:
     assert mhc == 4
     n = T.dynamic('num_tokens')
     h = hidden
@@ -109,7 +109,7 @@ def _mhc_post_bwd(mhc: int, hidden: int, n_thr: int = 128, h_blk: int = 256, num
             T.clear(da_reducer)
             T.clear(dc_reducer)
 
-            for i0_h in T.Pipelined(T.ceildiv(h, h_blk), num_stages=num_stages):
+            for i0_h in T.Pipelined(T.ceildiv(h, h_blk), num_stages=3):
                 T.copy(dx[pid_n, 0, i0_h * h_blk], dx_shared, disable_tma=True)
                 T.copy(b[pid_n, 0, i0_h * h_blk], b_shared, disable_tma=True)
                 T.copy(d[pid_n, i0_h * h_blk], d_shared, disable_tma=True)
@@ -189,14 +189,12 @@ def mhc_post_bwd(
     comb_res_mix: torch.Tensor,
     d_o: torch.Tensor,
     fuse_grad_acc: bool = True,
-    *,
-    kernel_config: dict[str, int] | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
     n = d_o.shape[0] * d_o.shape[1]
     mhc = d_o.shape[2]
     h = d_o.shape[3]
 
-    bwd_kernel = _mhc_post_bwd(mhc, h, **(kernel_config or {}))
+    bwd_kernel = _mhc_post_bwd(mhc, h)
     (
         d_comb_res_mix,
         d_residual,
