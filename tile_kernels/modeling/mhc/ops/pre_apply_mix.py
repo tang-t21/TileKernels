@@ -10,13 +10,15 @@ class MHCPreApplyMix(torch.autograd.Function):
         x: torch.Tensor,
         mix: torch.Tensor,
         out: torch.Tensor | None,
+        kernel_config: dict[str, dict[str, int]] | None = None,
     ) -> torch.Tensor:
         ctx.save_for_backward(x, mix)
         h = x.shape[-1]
         mhc = mix.shape[-2]
         assert mix.shape[-1] == 1
-        ctx.fwd_kernel = _mhc_pre_apply_mix_fwd(mhc, h)
-        ctx.bwd_kernel = _mhc_pre_apply_mix_bwd(mhc, h)
+        kernel_config = kernel_config or {}
+        ctx.fwd_kernel = _mhc_pre_apply_mix_fwd(mhc, h, **kernel_config.get('fwd', {}))
+        ctx.bwd_kernel = _mhc_pre_apply_mix_bwd(mhc, h, **kernel_config.get('bwd', {}))
         if out is None:
             out = torch.empty(*x.shape[:-2], h, dtype=torch.bfloat16, device=x.device)
         ctx.fwd_kernel(x.view(-1, mhc, h), mix.view(-1, mhc), out.view(-1, h))
@@ -44,12 +46,14 @@ class MHCPreApplyMix(torch.autograd.Function):
                 mix.view(-1, mhc),
                 x_grad.view(-1, mhc, h),
             )
-        return x_grad, mix_grad.view_as(mix), None
+        return x_grad, mix_grad.view_as(mix), None, None
 
 
 def mhc_pre_apply_mix(
     x: torch.Tensor,
     mix: torch.Tensor,
     out: torch.Tensor | None = None,
+    *,
+    kernel_config: dict[str, dict[str, int]] | None = None,
 ) -> torch.Tensor:
-    return MHCPreApplyMix.apply(x, mix, out)
+    return MHCPreApplyMix.apply(x, mix, out, kernel_config)

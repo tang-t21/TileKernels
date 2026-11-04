@@ -54,9 +54,11 @@ class MHCPreNormFn(torch.autograd.Function):
         norm_eps: float,
         fuse_grad_acc: bool,
         n_splits: int,
+        kernel_config: dict[str, dict[str, int]] | None = None,
     ) -> torch.Tensor:
         assert x.dtype == torch.bfloat16
         assert fn.dtype == torch.float32
+        kernel_config = kernel_config or {}
 
         mhc_mult3, mhc_hidden_size = fn.shape
         assert x.shape[-1] * x.shape[-2] == mhc_hidden_size
@@ -92,7 +94,7 @@ class MHCPreNormFn(torch.autograd.Function):
 
         fn = round_to_tf32(fn)
 
-        fwd_mul_kernel = _mhc_pre_norm_fn_fwd_mul(mhc_mult3, 1, mhc_hidden_size)
+        fwd_mul_kernel = _mhc_pre_norm_fn_fwd_mul(mhc_mult3, 1, mhc_hidden_size, **kernel_config.get('fwd_mul', {}))
         fwd_mul_kernel(
             x.view(-1, mhc_hidden_size),
             fn,
@@ -110,6 +112,7 @@ class MHCPreNormFn(torch.autograd.Function):
             mhc_hidden_size,
             norm_eps,
             n_splits,
+            **kernel_config.get('fwd_norm', {}),
         )
         fwd_norm_kernel(
             out_mul_splitted.view(n_splits, -1, 1, mhc_mult3),
@@ -122,6 +125,8 @@ class MHCPreNormFn(torch.autograd.Function):
         ctx.save_for_backward(x, fn, out_mul, sqrsum)
         ctx.norm_eps = norm_eps
         ctx.fuse_grad_acc = fuse_grad_acc
+        ctx.bwd_norm_config = dict(kernel_config.get('bwd_norm', {}))
+        ctx.bwd_mul_config = dict(kernel_config.get('bwd_mul', {}))
 
         return out
 
@@ -137,7 +142,7 @@ class MHCPreNormFn(torch.autograd.Function):
 
         out_mul_grad = torch.empty_like(out_mul)
         sqrsum_grad = torch.empty_like(sqrsum)
-        bwd_norm_kernel = _mhc_pre_norm_fn_bwd_norm(mhc_mult3, 1, mhc_hidden_size, norm_eps)
+        bwd_norm_kernel = _mhc_pre_norm_fn_bwd_norm(mhc_mult3, 1, mhc_hidden_size, norm_eps, **ctx.bwd_norm_config)
         bwd_norm_kernel(
             out_grad.view(-1, mhc_mult3),
             out_mul.view(-1, 1, mhc_mult3),
@@ -154,7 +159,7 @@ class MHCPreNormFn(torch.autograd.Function):
 
         out_mul_grad = round_to_tf32(out_mul_grad)
 
-        bwd_mul_kernel = _mhc_pre_norm_fn_bwd_mul(mhc_mult3, 1, mhc_hidden_size)
+        bwd_mul_kernel = _mhc_pre_norm_fn_bwd_mul(mhc_mult3, 1, mhc_hidden_size, **ctx.bwd_mul_config)
         bwd_mul_kernel(
             out_mul_grad.view(-1, 1, mhc_mult3),
             sqrsum_grad.view(-1, 1),
@@ -177,6 +182,8 @@ def mhc_pre_norm_fn(
     mhc_norm_eps: float,
     fuse_grad_acc: bool = True,
     n_splits: int = 16,
+    *,
+    kernel_config: dict[str, dict[str, int]] | None = None,
 ) -> torch.Tensor:
     if mhc_norm_weight is not None:
         mhc_fn = _MHCFnNormwMerge.apply(mhc_fn, mhc_norm_weight)
@@ -186,4 +193,5 @@ def mhc_pre_norm_fn(
         mhc_norm_eps,
         fuse_grad_acc,
         n_splits,
+        kernel_config,
     )

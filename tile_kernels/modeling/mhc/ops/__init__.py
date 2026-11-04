@@ -7,3 +7,6 @@ from .pre_apply_mix import mhc_pre_apply_mix
 from .pre_big_fuse import mhc_pre_big_fuse
 from .pre_split_mixes import mhc_pre_split_mixes
 from .sinkhorn import sinkhorn_normalize
+
+# Version the optional native mHC configuration ABI for downstream dispatch.
+MHC_KERNEL_CONFIG_VERSION = 1

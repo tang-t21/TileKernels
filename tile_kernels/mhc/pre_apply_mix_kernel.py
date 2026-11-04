@@ -17,6 +17,7 @@ def _mhc_pre_apply_mix_fwd(
     hidden: int,
     n_thr: int = 128,
     h_blk: int = 1024,
+    num_stages: int = 2,
 ) -> tilelang.JITKernel:
     n = T.dynamic('n')
     h = hidden
@@ -34,7 +35,7 @@ def _mhc_pre_apply_mix_fwd(
             mixl = T.alloc_fragment(mhc, T.float32)
             T.copy(mix[pid_n, 0], mixl)
 
-            for i0_h in T.Pipelined(h // h_blk, num_stages=2):
+            for i0_h in T.Pipelined(h // h_blk, num_stages=num_stages):
                 xs = T.alloc_shared((mhc, h_blk), T.bfloat16)
                 xl = T.alloc_fragment((mhc, h_blk), T.float32)
                 T.copy(x[pid_n, 0, i0_h * h_blk], xs, disable_tma=True)
@@ -60,6 +61,7 @@ def _mhc_pre_apply_mix_bwd(
     hidden: int,
     n_thr: int = 128,
     h_blk: int = 1024,
+    num_stages: int = 2,
 ) -> tilelang.JITKernel:
     n = T.dynamic('n')
     h = hidden
@@ -82,7 +84,7 @@ def _mhc_pre_apply_mix_bwd(
             mgl = T.alloc_reducer(mhc, T.float32, replication='all')
             T.fill(mgl, 0)
 
-            for i0_h in T.Pipelined(h // h_blk, num_stages=2):
+            for i0_h in T.Pipelined(h // h_blk, num_stages=num_stages):
                 ogs = T.alloc_shared(h_blk, T.bfloat16)
                 ogl = T.alloc_fragment(h_blk, T.float32)
                 T.copy(o_grad[pid_n, i0_h * h_blk], ogs, disable_tma=True)
