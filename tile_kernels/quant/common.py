@@ -4,7 +4,11 @@ from typing import Optional, Union
 import torch
 from tilelang import language as T
 from tilelang.contrib import nvcc
-from tilelang.utils.target import determine_target
+
+try:
+    from tilelang.backend.target import determine_target
+except ImportError:
+    from tilelang.utils.target import determine_target
 
 from tile_kernels.quant.types import QuantTensor
 from tile_kernels.utils import align, ceil_div
